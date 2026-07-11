@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Equity + Drawdown</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  body {
+    background: #0a0a0a;
+    color: #e5e5e5;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 4px 0;
+  }
+  .subtitle {
+    color: #888;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: #161616;
+    border: 1px solid #262626;
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .stat-label {
+    color: #888;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .stat-value {
+    font-size: 20px;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+  .positive { color: #4ade80; }
+  .negative { color: #f87171; }
+  #chartWrap {
+    background: #111;
+    border: 1px solid #262626;
+    border-radius: 12px;
+    padding: 16px;
+    height: 420px;
+  }
+  #status {
+    color: #888;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Equity + Drawdown</h1>
+<div class="subtitle">Live from your Notion trades database</div>
+
+<div id="status">Loading...</div>
+<div class="stats" id="stats" style="display:none"></div>
+<div id="chartWrap" style="display:none">
+  <canvas id="equityChart"></canvas>
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:8000/equity-curve";
+
+async function loadChart() {
+  const statusEl = document.getElementById("status");
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    const data = await res.json();
+
+    if (!data.points || data.points.length === 0) {
+      statusEl.textContent = "No trade data returned yet — log some trades first.";
+      return;
+    }
+
+    renderStats(data.summary);
+    renderChart(data.points);
+
+    statusEl.style.display = "none";
+    document.getElementById("stats").style.display = "flex";
+    document.getElementById("chartWrap").style.display = "block";
+  } catch (err) {
+    statusEl.textContent =
+      "Couldn't reach the server at " + API_URL +
+      " — make sure 'uvicorn app:app --reload' is still running in your terminal. (" + err.message + ")";
+  }
+}
+
+function renderStats(summary) {
+  const statsEl = document.getElementById("stats");
+  const pnlClass = summary.final_equity >= summary.starting_balance ? "positive" : "negative";
+
+  statsEl.innerHTML = `
+    <div class="stat">
+      <div class="stat-label">Starting balance</div>
+      <div class="stat-value">$${summary.starting_balance.toLocaleString()}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Current equity</div>
+      <div class="stat-value ${pnlClass}">$${summary.final_equity.toLocaleString()}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Max drawdown</div>
+      <div class="stat-value negative">$${summary.max_drawdown.toLocaleString()}</div>
+    </div>
+  `;
+}
+
+function renderChart(points) {
+  const labels = points.map(p => new Date(p.date).toLocaleDateString());
+  const equity = points.map(p => p.equity);
+  const drawdown = points.map(p => p.drawdown);
+
+  const ctx = document.getElementById("equityChart").getContext("2d");
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "Equity",
+          data: equity,
+          borderColor: "#4ade80",
+          backgroundColor: "rgba(74, 222, 128, 0.08)",
+          borderWidth: 2,
+          fill: true,
+          tension: 0.25,
+          yAxisID: "y",
+          pointRadius: 3,
+          pointBackgroundColor: "#4ade80",
+        },
+        {
+          label: "Drawdown",
+          data: drawdown,
+          borderColor: "#f87171",
+          backgroundColor: "rgba(248, 113, 113, 0.15)",
+          borderWidth: 1.5,
+          fill: true,
+          tension: 0.25,
+          yAxisID: "y1",
+          pointRadius: 2,
+          pointBackgroundColor: "#f87171",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: "#e5e5e5" },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: "#1f1f1f" },
+          ticks: { color: "#888", maxTicksLimit: 8 },
+        },
+        y: {
+          position: "left",
+          grid: { color: "#1f1f1f" },
+          ticks: {
+            color: "#888",
+            callback: (v) => "$" + v.toLocaleString(),
+          },
+        },
+        y1: {
+          position: "right",
+          suggestedMax: 0,
+          grid: { drawOnChartArea: false },
+          ticks: {
+            color: "#888",
+            callback: (v) => "$" + v.toLocaleString(),
+          },
+        },
+      },
+    },
+  });
+}
+
+loadChart();
+</script>
+
+</body>
+</html>
