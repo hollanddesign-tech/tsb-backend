@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from build_equity_curve import pull_trades, build_equity_curve, STARTING_BALANCE
 
@@ -40,3 +41,7 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+@app.get("/chart")
+def get_chart():
+    return FileResponse("chart.html")
