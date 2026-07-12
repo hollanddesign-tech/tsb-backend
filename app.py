@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from build_equity_curve import pull_trades, build_equity_curve, STARTING_BALANCE
+from build_win_loss import build_win_loss
 
 app = FastAPI()
 
@@ -30,6 +31,11 @@ def get_equity_curve():
         }
 
     return {"summary": summary, "points": curve}
+
+@app.get("/win-loss")
+def get_win_loss():
+    pages = pull_trades()
+    return build_win_loss(pages)
 
 
 @app.get("/")

@@ -121,12 +121,51 @@
   }
   .positive { color: var(--green); }
   .negative { color: var(--red); }
+  .mainRow {
+    display: flex;
+    gap: 20px;
+    align-items: stretch;
+  }
   #chartWrap {
+    flex: 1;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 16px;
     height: 420px;
+  }
+  #winLossWrap {
+    width: 260px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    height: 420px;
+    display: flex;
+    flex-direction: column;
+  }
+  #winLossWrap h3 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 12px 0;
+  }
+  .winLossLegend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .legendDot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
   }
   #status {
     color: var(--muted);
@@ -167,8 +206,20 @@
 <div id="equityView">
   <div id="status">Loading...</div>
   <div class="stats" id="stats" style="display:none"></div>
-  <div id="chartWrap" style="display:none">
-    <canvas id="equityChart"></canvas>
+  <div class="mainRow" id="mainRow" style="display:none">
+    <div id="chartWrap">
+      <canvas id="equityChart"></canvas>
+    </div>
+    <div id="winLossWrap">
+      <h3>Win-Loss Ratio</h3>
+      <div style="position: relative; flex: 1;">
+        <canvas id="winLossChart"></canvas>
+      </div>
+      <div class="winLossLegend">
+        <span><span class="legendDot" style="background:#4ade80"></span>Win</span>
+        <span><span class="legendDot" style="background:#f87171"></span>Loss</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -180,9 +231,40 @@
 Chart.register(ChartDataLabels);
 
 const API_URL = "https://tsb-backend-production.up.railway.app/equity-curve";
+const WIN_LOSS_API_URL = "https://tsb-backend-production.up.railway.app/win-loss";
 
 let chartInstance = null;
+let winLossChartInstance = null;
 let cachedData = null;
+let cachedWinLoss = null;
+
+// Draws "62% / Win Rate" text centered inside the donut hole — Chart.js
+// doesn't support this natively, so this is a small custom plugin.
+const centerTextPlugin = {
+  id: "centerText",
+  afterDraw(chart) {
+    if (chart.config.type !== "doughnut") return;
+    const { ctx, chartArea } = chart;
+    const winRate = chart.config._winRate;
+    if (winRate === undefined) return;
+
+    const centerX = (chartArea.left + chartArea.right) / 2;
+    const centerY = (chartArea.top + chartArea.bottom) / 2;
+    const isLight = document.body.classList.contains("light");
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = isLight ? "#1a1a1a" : "#e5e5e5";
+    ctx.font = "600 26px -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillText(winRate + "%", centerX, centerY - 8);
+    ctx.fillStyle = isLight ? "#666666" : "#888888";
+    ctx.font = "12px -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillText("Win Rate", centerX, centerY + 14);
+    ctx.restore();
+  },
+};
+Chart.register(centerTextPlugin);
 
 // ---------- Theme toggle (icon only) ----------
 function toggleTheme() {
@@ -190,6 +272,7 @@ function toggleTheme() {
   const btn = document.getElementById("themeToggle");
   btn.textContent = isLight ? "☀️" : "🌙";
   if (cachedData) renderChart(cachedData.points);
+  if (cachedWinLoss) renderWinLoss(cachedWinLoss);
 }
 
 // ---------- Tab switching ----------
@@ -228,9 +311,13 @@ function formatCompact(v) {
 async function loadChart() {
   const statusEl = document.getElementById("status");
   try {
-    const res = await fetch(API_URL);
-    if (!res.ok) throw new Error(`Server responded ${res.status}`);
-    const data = await res.json();
+    const [equityRes, winLossRes] = await Promise.all([
+      fetch(API_URL),
+      fetch(WIN_LOSS_API_URL),
+    ]);
+
+    if (!equityRes.ok) throw new Error(`Equity server responded ${equityRes.status}`);
+    const data = await equityRes.json();
     cachedData = data;
 
     if (!data.points || data.points.length === 0) {
@@ -238,16 +325,53 @@ async function loadChart() {
       return;
     }
 
+    if (winLossRes.ok) {
+      cachedWinLoss = await winLossRes.json();
+      renderWinLoss(cachedWinLoss);
+    }
+
     renderStats(data.summary);
     renderChart(data.points);
 
     statusEl.style.display = "none";
     document.getElementById("stats").style.display = "flex";
-    document.getElementById("chartWrap").style.display = "block";
+    document.getElementById("mainRow").style.display = "flex";
   } catch (err) {
     statusEl.textContent =
       "Couldn't reach the server at " + API_URL + " (" + err.message + ")";
   }
+}
+
+function renderWinLoss(data) {
+  const ctx = document.getElementById("winLossChart").getContext("2d");
+
+  if (winLossChartInstance) {
+    winLossChartInstance.destroy();
+  }
+
+  winLossChartInstance = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Win", "Loss"],
+      datasets: [{
+        data: [data.wins, data.losses],
+        backgroundColor: ["#4ade80", "#f87171"],
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "72%",
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: true },
+        datalabels: { display: false },
+      },
+    },
+  });
+  winLossChartInstance.config._winRate = data.win_rate;
+  winLossChartInstance.update();
 }
 
 function renderStats(summary) {
