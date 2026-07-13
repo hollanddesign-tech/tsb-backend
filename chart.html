@@ -227,6 +227,13 @@
   This view isn't built yet — coming soon.
 </div>
 
+<div id="monthlyView" style="display:none">
+  <div id="monthlyStatus" style="color: var(--muted); font-size: 13px;">Loading...</div>
+  <div id="monthlyChartWrap" style="display:none; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; height: 420px;">
+    <canvas id="monthlyChart"></canvas>
+  </div>
+</div>
+
 <script>
 Chart.register(ChartDataLabels);
 
@@ -270,7 +277,7 @@ Chart.register(centerTextPlugin);
 function toggleTheme() {
   const isLight = document.body.classList.toggle("light");
   const btn = document.getElementById("themeToggle");
-  btn.textContent = isLight ? "☀️" : "🌙";
+  btn.textContent = isLight ? "🔆" : "🌑";
   if (cachedData) renderChart(cachedData.points);
   if (cachedWinLoss) renderWinLoss(cachedWinLoss);
 }
@@ -285,18 +292,97 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
     const title = document.getElementById("pageTitle");
     const equityView = document.getElementById("equityView");
     const comingSoon = document.getElementById("comingSoonView");
+    const monthlyView = document.getElementById("monthlyView");
+
+    equityView.style.display = "none";
+    comingSoon.style.display = "none";
+    monthlyView.style.display = "none";
 
     if (tab === "equity") {
       title.textContent = "Equity + Drawdown";
       equityView.style.display = "block";
-      comingSoon.style.display = "none";
+    } else if (tab === "monthly") {
+      title.textContent = "Monthly P&L";
+      monthlyView.style.display = "block";
+      if (!cachedMonthly) loadMonthly();
     } else {
       title.textContent = tabBtn.textContent;
-      equityView.style.display = "none";
       comingSoon.style.display = "block";
     }
   });
 });
+
+let monthlyChartInstance = null;
+let cachedMonthly = null;
+
+async function loadMonthly() {
+  const statusEl = document.getElementById("monthlyStatus");
+  const wrapEl = document.getElementById("monthlyChartWrap");
+  try {
+    const res = await fetch("https://tsb-backend-production.up.railway.app/monthly-pnl");
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    const data = await res.json();
+    cachedMonthly = data.months;
+
+    if (!cachedMonthly || cachedMonthly.length === 0) {
+      statusEl.textContent = "No trade data yet.";
+      return;
+    }
+
+    renderMonthly(cachedMonthly);
+    statusEl.style.display = "none";
+    wrapEl.style.display = "block";
+  } catch (err) {
+    statusEl.textContent = "Couldn't load monthly data (" + err.message + ")";
+  }
+}
+
+function renderMonthly(months) {
+  const isLight = document.body.classList.contains("light");
+  const mutedColor = isLight ? "#666666" : "#888888";
+  const gridColor = isLight ? "#eeeeee" : "#1f1f1f";
+
+  const labels = months.map(m => m.month);
+  const pnl = months.map(m => m.pnl);
+  const colors = pnl.map(v => v >= 0 ? "#4ade80" : "#f87171");
+
+  const ctx = document.getElementById("monthlyChart").getContext("2d");
+  if (monthlyChartInstance) monthlyChartInstance.destroy();
+
+  monthlyChartInstance = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Monthly P&L",
+        data: pnl,
+        backgroundColor: colors,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          anchor: "end",
+          align: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? "top" : "bottom",
+          color: mutedColor,
+          font: { size: 11 },
+          formatter: (v) => formatCompact(v),
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: mutedColor } },
+        y: {
+          grid: { color: gridColor },
+          ticks: { color: mutedColor, callback: (v) => formatCompact(v) },
+        },
+      },
+    },
+  });
+}
 
 // ---------- Helpers ----------
 function formatCompact(v) {
