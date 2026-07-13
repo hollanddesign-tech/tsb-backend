@@ -38,7 +38,28 @@ def get_equity_curve():
     return {"summary": summary, "points": curve}
 
 
-CRYPTO_IDS = {"bitcoin": "BTCUSDT", "ethereum": "ETHUSDT"}
+CRYPTO_IDS = {
+    "bitcoin": "BTCUSDT",
+    "ethereum": "ETHUSDT",
+    "binancecoin": "BNBUSDT",
+    "solana": "SOLUSDT",
+    "ripple": "XRPUSDT",
+    "cardano": "ADAUSDT",
+    "dogecoin": "DOGEUSDT",
+    "avalanche-2": "AVAXUSDT",
+    "polkadot": "DOTUSDT",
+    "chainlink": "LINKUSDT",
+    "tron": "TRXUSDT",
+    "litecoin": "LTCUSDT",
+    "polygon": "MATICUSDT",
+    "shiba-inu": "SHIBUSDT",
+    "uniswap": "UNIUSDT",
+    "near": "NEARUSDT",
+    "internet-computer": "ICPUSDT",
+    "aptos": "APTUSDT",
+    "stellar": "XLMUSDT",
+    "cosmos": "ATOMUSDT",
+}
 
 
 @app.get("/ticker")

@@ -7,25 +7,46 @@
   body {
     background: #0a0a0a;
     margin: 0;
-    padding: 10px 16px;
+    padding: 10px 0;
     font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    overflow: hidden;
   }
-  .ticker {
+
+  /* Outer mask so the scrolling row appears to fade in/out at the edges */
+  .tickerViewport {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* The scrolling track holds the item list TWICE back to back, so when
+     the first copy scrolls fully out of view, the second copy is right
+     there to continue seamlessly — that's what makes it loop forever
+     without a visible jump or reset. */
+  .tickerTrack {
     display: flex;
-    gap: 24px;
-    overflow-x: auto;
+    width: max-content;
+    animation: scrollLeft 40s linear infinite;
   }
+  .tickerTrack:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes scrollLeft {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
   .item {
     display: flex;
     flex-direction: column;
-    min-width: 90px;
+    min-width: 100px;
+    padding: 0 20px;
+    border-right: 1px solid #1f1f1f;
   }
   .symbol {
     color: #888;
     font-size: 11px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
   .price {
     color: #e5e5e5;
@@ -42,37 +63,51 @@
 </head>
 <body>
 
-<div class="ticker" id="ticker">Loading...</div>
+<div class="tickerViewport">
+  <div class="tickerTrack" id="tickerTrack">Loading...</div>
+</div>
 
 <script>
 const TICKER_URL = "https://tsb-backend-production.up.railway.app/ticker";
 
+function renderItem(item) {
+  if (item.error) {
+    return `<div class="item"><span class="symbol">${item.symbol}</span><span class="price">--</span></div>`;
+  }
+  const isUp = item.change_pct >= 0;
+  const arrow = isUp ? "▲" : "▼";
+  const cls = isUp ? "up" : "down";
+  const priceDisplay = item.price < 1
+    ? item.price.toFixed(4)
+    : item.price.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+  return `
+    <div class="item">
+      <span class="symbol">${item.symbol}</span>
+      <span class="price">$${priceDisplay}</span>
+      <span class="change ${cls}">${arrow} ${item.change_pct.toFixed(2)}%</span>
+    </div>
+  `;
+}
+
 async function loadTicker() {
-  const el = document.getElementById("ticker");
+  const track = document.getElementById("tickerTrack");
   try {
     const res = await fetch(TICKER_URL);
     const data = await res.json();
 
-    el.innerHTML = data.ticker.map(item => {
-      if (item.error) return `<div class="item"><span class="symbol">${item.symbol}</span><span class="price">--</span></div>`;
-      const isUp = item.change_pct >= 0;
-      const arrow = isUp ? "▲" : "▼";
-      const cls = isUp ? "up" : "down";
-      return `
-        <div class="item">
-          <span class="symbol">${item.symbol}</span>
-          <span class="price">${item.price.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
-          <span class="change ${cls}">${arrow} ${item.change_pct.toFixed(2)}%</span>
-        </div>
-      `;
-    }).join("");
+    // Build the item list once, then duplicate it — this pair of identical
+    // copies placed side by side is what the scrollLeft animation relies on
+    // for a seamless infinite loop (see the CSS comment above).
+    const itemsHtml = data.ticker.map(renderItem).join("");
+    track.innerHTML = itemsHtml + itemsHtml;
   } catch (err) {
-    el.textContent = "Couldn't load ticker: " + err.message;
+    track.textContent = "Couldn't load ticker: " + err.message;
   }
 }
 
 loadTicker();
-setInterval(loadTicker, 15000);
+setInterval(loadTicker, 30000); // refresh prices every 30s; animation keeps scrolling regardless
 </script>
 
 </body>
