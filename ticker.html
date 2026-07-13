@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ticker</title>
+<style>
+  body {
+    background: #0a0a0a;
+    margin: 0;
+    padding: 10px 16px;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  .ticker {
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+  }
+  .item {
+    display: flex;
+    flex-direction: column;
+    min-width: 90px;
+  }
+  .symbol {
+    color: #888;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .price {
+    color: #e5e5e5;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .change {
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .up { color: #4ade80; }
+  .down { color: #f87171; }
+</style>
+</head>
+<body>
+
+<div class="ticker" id="ticker">Loading...</div>
+
+<script>
+const TICKER_URL = "https://tsb-backend-production.up.railway.app/ticker";
+
+async function loadTicker() {
+  const el = document.getElementById("ticker");
+  try {
+    const res = await fetch(TICKER_URL);
+    const data = await res.json();
+
+    el.innerHTML = data.ticker.map(item => {
+      if (item.error) return `<div class="item"><span class="symbol">${item.symbol}</span><span class="price">--</span></div>`;
+      const isUp = item.change_pct >= 0;
+      const arrow = isUp ? "▲" : "▼";
+      const cls = isUp ? "up" : "down";
+      return `
+        <div class="item">
+          <span class="symbol">${item.symbol}</span>
+          <span class="price">${item.price.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
+          <span class="change ${cls}">${arrow} ${item.change_pct.toFixed(2)}%</span>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    el.textContent = "Couldn't load ticker: " + err.message;
+  }
+}
+
+loadTicker();
+setInterval(loadTicker, 15000);
+</script>
+
+</body>
+</html>
