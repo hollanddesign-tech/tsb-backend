@@ -38,28 +38,34 @@ def get_equity_curve():
     return {"summary": summary, "points": curve}
 
 
-CRYPTO_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
+CRYPTO_IDS = {"bitcoin": "BTCUSDT", "ethereum": "ETHUSDT"}
 
 
 @app.get("/ticker")
 def get_ticker():
     results = []
-    for symbol in CRYPTO_SYMBOLS:
-        try:
-            resp = requests.get(
-                "https://api.binance.com/api/v3/ticker/24hr",
-                params={"symbol": symbol},
-                timeout=5,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+    try:
+        resp = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={
+                "ids": ",".join(CRYPTO_IDS.keys()),
+                "vs_currencies": "usd",
+                "include_24hr_change": "true",
+            },
+            timeout=5,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        for coin_id, symbol in CRYPTO_IDS.items():
+            coin_data = data.get(coin_id, {})
             results.append({
                 "symbol": symbol,
-                "price": float(data["lastPrice"]),
-                "change_pct": float(data["priceChangePercent"]),
+                "price": coin_data.get("usd", 0),
+                "change_pct": coin_data.get("usd_24h_change", 0),
             })
-        except Exception as e:
-            results.append({"symbol": symbol, "error": str(e)})
+    except Exception as e:
+        results = [{"symbol": s, "error": str(e)} for s in CRYPTO_IDS.values()]
 
     return {"ticker": results}
 
