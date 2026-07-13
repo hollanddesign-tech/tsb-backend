@@ -10,6 +10,7 @@ import requests
 from build_equity_curve import pull_trades, build_equity_curve, STARTING_BALANCE
 from build_win_loss import build_win_loss
 from build_monthly import build_monthly
+from build_sessions import build_sessions
 
 app = FastAPI()
 
@@ -101,6 +102,11 @@ def get_win_loss():
 def get_monthly_pnl():
     pages = pull_trades()
     return {"months": build_monthly(pages)}
+
+@app.get("/sessions-pnl")
+def get_sessions_pnl():
+    pages = pull_trades()
+    return {"sessions": build_sessions(pages)}
 
 @app.get("/")
 def root():

@@ -52,7 +52,6 @@
     margin-bottom: 16px;
   }
 
-  /* Icon-only circular toggle button */
   #themeToggle {
     width: 34px;
     height: 34px;
@@ -234,6 +233,13 @@
   </div>
 </div>
 
+<div id="sessionsView" style="display:none">
+  <div id="sessionsStatus" style="color: var(--muted); font-size: 13px;">Loading...</div>
+  <div id="sessionsChartWrap" style="display:none; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; height: 420px;">
+    <canvas id="sessionsChart"></canvas>
+  </div>
+</div>
+
 <script>
 Chart.register(ChartDataLabels);
 
@@ -245,8 +251,6 @@ let winLossChartInstance = null;
 let cachedData = null;
 let cachedWinLoss = null;
 
-// Draws "62% / Win Rate" text centered inside the donut hole — Chart.js
-// doesn't support this natively, so this is a small custom plugin.
 const centerTextPlugin = {
   id: "centerText",
   afterDraw(chart) {
@@ -273,16 +277,14 @@ const centerTextPlugin = {
 };
 Chart.register(centerTextPlugin);
 
-// ---------- Theme toggle (icon only) ----------
 function toggleTheme() {
   const isLight = document.body.classList.toggle("light");
   const btn = document.getElementById("themeToggle");
-  btn.textContent = isLight ? "🔆" : "🌑";
+  btn.textContent = isLight ? "☀️" : "🌙";
   if (cachedData) renderChart(cachedData.points);
   if (cachedWinLoss) renderWinLoss(cachedWinLoss);
 }
 
-// ---------- Tab switching ----------
 document.querySelectorAll(".tab").forEach(tabBtn => {
   tabBtn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -293,10 +295,12 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
     const equityView = document.getElementById("equityView");
     const comingSoon = document.getElementById("comingSoonView");
     const monthlyView = document.getElementById("monthlyView");
+    const sessionsView = document.getElementById("sessionsView");
 
     equityView.style.display = "none";
     comingSoon.style.display = "none";
     monthlyView.style.display = "none";
+    sessionsView.style.display = "none";
 
     if (tab === "equity") {
       title.textContent = "Equity + Drawdown";
@@ -305,12 +309,88 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
       title.textContent = "Monthly P&L";
       monthlyView.style.display = "block";
       if (!cachedMonthly) loadMonthly();
+    } else if (tab === "sessions") {
+      title.textContent = "Sessions P&L";
+      sessionsView.style.display = "block";
+      if (!cachedSessions) loadSessions();
     } else {
       title.textContent = tabBtn.textContent;
       comingSoon.style.display = "block";
     }
   });
 });
+
+let sessionsChartInstance = null;
+let cachedSessions = null;
+
+async function loadSessions() {
+  const statusEl = document.getElementById("sessionsStatus");
+  const wrapEl = document.getElementById("sessionsChartWrap");
+  try {
+    const res = await fetch("https://tsb-backend-production.up.railway.app/sessions-pnl");
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    const data = await res.json();
+    cachedSessions = data.sessions;
+
+    if (!cachedSessions || cachedSessions.length === 0) {
+      statusEl.textContent = "No trade data yet.";
+      return;
+    }
+
+    renderSessions(cachedSessions);
+    statusEl.style.display = "none";
+    wrapEl.style.display = "block";
+  } catch (err) {
+    statusEl.textContent = "Couldn't load sessions data (" + err.message + ")";
+  }
+}
+
+function renderSessions(sessions) {
+  const isLight = document.body.classList.contains("light");
+  const mutedColor = isLight ? "#666666" : "#888888";
+  const gridColor = isLight ? "#eeeeee" : "#1f1f1f";
+
+  const labels = sessions.map(s => s.session);
+  const pnl = sessions.map(s => s.pnl);
+  const colors = pnl.map(v => v >= 0 ? "#4ade80" : "#f87171");
+
+  const ctx = document.getElementById("sessionsChart").getContext("2d");
+  if (sessionsChartInstance) sessionsChartInstance.destroy();
+
+  sessionsChartInstance = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "P&L by Session",
+        data: pnl,
+        backgroundColor: colors,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          anchor: "end",
+          align: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? "top" : "bottom",
+          color: mutedColor,
+          font: { size: 11 },
+          formatter: (v) => formatCompact(v),
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: mutedColor } },
+        y: {
+          grid: { color: gridColor },
+          ticks: { color: mutedColor, callback: (v) => formatCompact(v) },
+        },
+      },
+    },
+  });
+}
 
 let monthlyChartInstance = null;
 let cachedMonthly = null;
@@ -384,16 +464,13 @@ function renderMonthly(months) {
   });
 }
 
-// ---------- Helpers ----------
 function formatCompact(v) {
-  // Turns 12345 into "$12.3K", -305 into "-$305", matching the TSB-style labels
   const sign = v < 0 ? "-" : "";
   const abs = Math.abs(v);
   if (abs >= 1000) return sign + "$" + (abs / 1000).toFixed(1).replace(/\.0$/, "") + "K";
   return sign + "$" + abs.toLocaleString();
 }
 
-// ---------- Data + chart ----------
 async function loadChart() {
   const statusEl = document.getElementById("status");
   try {
@@ -496,9 +573,6 @@ function renderChart(points) {
     chartInstance.destroy();
   }
 
-  // Soft vertical gradient fill under the equity line — fades from green to
-  // transparent, which is what gives the TSB chart its "glow" look instead
-  // of a flat solid fill.
   const equityGradient = ctx.createLinearGradient(0, 0, 0, 380);
   equityGradient.addColorStop(0, "rgba(74, 222, 128, 0.25)");
   equityGradient.addColorStop(1, "rgba(74, 222, 128, 0.0)");
@@ -507,8 +581,6 @@ function renderChart(points) {
   drawdownGradient.addColorStop(0, "rgba(248, 113, 113, 0.20)");
   drawdownGradient.addColorStop(1, "rgba(248, 113, 113, 0.0)");
 
-  // Only label a handful of points (first, last, local peaks/troughs) —
-  // labeling every single point gets cluttered fast on a real dataset.
   function shouldLabel(i) {
     if (i === 0 || i === equity.length - 1) return true;
     const prev = equity[i - 1], curr = equity[i], next = equity[i + 1];
