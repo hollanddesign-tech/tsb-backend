@@ -13,6 +13,7 @@ from build_monthly import build_monthly
 from build_sessions import build_sessions
 from build_setups import build_setups
 from build_daily import build_daily
+from build_curve import build_curve
 
 app = FastAPI()
 
@@ -118,6 +119,11 @@ def get_setups():
 def get_daily_pnl():
     pages = pull_trades()
     return {"days": build_daily(pages)}
+
+@app.get("/r-curve")
+def get_r_curve():
+    pages = pull_trades()
+    return {"curve": build_curve(pages)}
 
 @app.get("/")
 def root():
