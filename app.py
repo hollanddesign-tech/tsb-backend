@@ -12,6 +12,7 @@ from build_win_loss import build_win_loss
 from build_monthly import build_monthly
 from build_sessions import build_sessions
 from build_setups import build_setups
+from build_daily import build_daily
 
 app = FastAPI()
 
@@ -112,6 +113,11 @@ def get_sessions_pnl():
 @app.get("/setups")
 def get_setups():
     return {"setups": build_setups()}
+
+@app.get("/daily-pnl")
+def get_daily_pnl():
+    pages = pull_trades()
+    return {"days": build_daily(pages)}
 
 @app.get("/")
 def root():
