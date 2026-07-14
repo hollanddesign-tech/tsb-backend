@@ -42,17 +42,24 @@ def get_prop_value(prop):
 
 
 def pull_trades():
-    url = f"https://api.notion.com/v1/databases/{TRADES_DB_ID}/query"
+    return pull_database(TRADES_DB_ID)
+
+
+def pull_database(database_id):
+    url = f"https://api.notion.com/v1/databases/{database_id}/query"
     all_results = []
     payload = {"page_size": 100}
+
     while True:
         resp = requests.post(url, headers=HEADERS, json=payload)
         resp.raise_for_status()
         data = resp.json()
         all_results.extend(data["results"])
+
         if not data.get("has_more"):
             break
         payload["start_cursor"] = data["next_cursor"]
+
     return all_results
 
 
