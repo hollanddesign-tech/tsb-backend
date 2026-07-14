@@ -255,6 +255,13 @@
   </div>
 </div>
 
+<div id="returnsView" style="display:none">
+  <div id="returnsStatus" style="color: var(--muted); font-size: 13px;">Loading...</div>
+  <div id="returnsChartWrap" style="display:none; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; height: 420px;">
+    <canvas id="returnsChart"></canvas>
+  </div>
+</div>
+
 <script>
 Chart.register(ChartDataLabels);
 
@@ -317,6 +324,7 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
     const sessionsView = document.getElementById("sessionsView");
     const setupsView = document.getElementById("setupsView");
     const dailyView = document.getElementById("dailyView");
+    const returnsView = document.getElementById("returnsView");
 
     equityView.style.display = "none";
     comingSoon.style.display = "none";
@@ -324,6 +332,7 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
     sessionsView.style.display = "none";
     setupsView.style.display = "none";
     dailyView.style.display = "none";
+    returnsView.style.display = "none";
 
     if (tab === "equity") {
       title.textContent = "Equity + Drawdown";
@@ -344,12 +353,100 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
       title.textContent = "Daily P&L";
       dailyView.style.display = "block";
       if (!cachedDaily) loadDaily();
+    } else if (tab === "returns") {
+      title.textContent = "Return %";
+      returnsView.style.display = "block";
+      loadReturns();
     } else {
       title.textContent = tabBtn.textContent;
       comingSoon.style.display = "block";
     }
   });
 });
+
+let returnsChartInstance = null;
+
+// Unlike the other tabs, this doesn't need its own fetch — it reuses the
+// equity data already loaded for the Equity tab and just recomputes it
+// as a percentage instead of dollars.
+function loadReturns() {
+  const statusEl = document.getElementById("returnsStatus");
+  const wrapEl = document.getElementById("returnsChartWrap");
+
+  if (!cachedData || !cachedData.points || cachedData.points.length === 0) {
+    statusEl.textContent = "Equity data not loaded yet — try the Equity tab first.";
+    return;
+  }
+
+  renderReturns(cachedData.points, cachedData.summary.starting_balance);
+  statusEl.style.display = "none";
+  wrapEl.style.display = "block";
+}
+
+function renderReturns(points, startingBalance) {
+  const isLight = document.body.classList.contains("light");
+  const textColor = isLight ? "#1a1a1a" : "#e5e5e5";
+  const mutedColor = isLight ? "#666666" : "#888888";
+  const gridColor = isLight ? "#eeeeee" : "#1f1f1f";
+
+  const labels = points.map(p => new Date(p.date).toLocaleDateString());
+  // Convert dollar equity into % return relative to the starting balance —
+  // same underlying data as the Equity tab, different lens on it.
+  const returnsPct = points.map(p =>
+    ((p.equity - startingBalance) / startingBalance) * 100
+  );
+  const colors = returnsPct.map(v => v >= 0 ? "#4ade80" : "#f87171");
+
+  const ctx = document.getElementById("returnsChart").getContext("2d");
+  if (returnsChartInstance) returnsChartInstance.destroy();
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 380);
+  gradient.addColorStop(0, "rgba(74, 222, 128, 0.25)");
+  gradient.addColorStop(1, "rgba(74, 222, 128, 0.0)");
+
+  returnsChartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Return %",
+        data: returnsPct,
+        borderColor: "#4ade80",
+        backgroundColor: gradient,
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointBackgroundColor: "#4ade80",
+        datalabels: {
+          display: (ctx) => ctx.dataIndex === 0 || ctx.dataIndex === returnsPct.length - 1,
+          align: "top",
+          color: textColor,
+          font: { size: 11, weight: "500" },
+          formatter: (v) => v.toFixed(2) + "%",
+        },
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: textColor } },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: mutedColor, maxTicksLimit: 8 },
+        },
+        y: {
+          grid: { color: gridColor },
+          ticks: { color: mutedColor, callback: (v) => v + "%" },
+        },
+      },
+    },
+  });
+}
 
 let dailyChartInstance = null;
 let cachedDaily = null;
