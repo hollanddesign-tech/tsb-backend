@@ -5,158 +5,203 @@
 <title>Equity + Drawdown</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0a0a0a;
-    --panel: #111111;
-    --card: #161616;
-    --border: #262626;
-    --text: #e5e5e5;
-    --muted: #888888;
-    --green: #4ade80;
-    --red: #f87171;
-    --grid: #1f1f1f;
+    /* Trading-terminal dark palette, closer to Binance/TradingView than a
+       generic dark theme — deep near-black background, saturated green/red
+       rather than pastel, so P&L reads with the same weight it would on a
+       real exchange. */
+    --bg: #0b0e11;
+    --panel: #14181d;
+    --card: #181c22;
+    --border: #262b33;
+    --border-soft: #1e222a;
+    --text: #eaecef;
+    --muted: #848e9c;
+    --green: #0ecb81;
+    --green-dim: rgba(14, 203, 129, 0.12);
+    --red: #f6465d;
+    --red-dim: rgba(246, 70, 93, 0.12);
+    --grid: #1a1e24;
+    --accent-glow: rgba(14, 203, 129, 0.35);
   }
   body.light {
-    --bg: #f7f7f7;
+    --bg: #f8f9fa;
     --panel: #ffffff;
     --card: #ffffff;
-    --border: #e2e2e2;
-    --text: #1a1a1a;
-    --muted: #666666;
-    --grid: #eeeeee;
+    --border: #e7e9ec;
+    --border-soft: #eef0f2;
+    --text: #12161c;
+    --muted: #707a8a;
+    --grid: #eef0f2;
   }
+
+  * { box-sizing: border-box; }
 
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, Segoe UI, Roboto, sans-serif;
     margin: 0;
     padding: 24px;
     transition: background 0.15s ease, color 0.15s ease;
+    -webkit-font-smoothing: antialiased;
   }
+
+  /* All numeric/price values use the mono face with tabular figures — the
+     one detail that most separates a "real" trading UI from a dashboard
+     mockup: digits align vertically no matter what number's shown. */
+  .mono, .stat-value, .price-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
   h1 {
-    font-size: 18px;
-    font-weight: 500;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
     margin: 0 0 4px 0;
   }
   .subtitle {
     color: var(--muted);
-    font-size: 13px;
-    margin-bottom: 20px;
+    font-size: 12.5px;
+    margin-bottom: 22px;
+    font-weight: 500;
   }
   .topbar {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
 
-  /* Icon-only circular toggle button */
   #themeToggle {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     background: var(--card);
     border: 1px solid var(--border);
     color: var(--text);
-    border-radius: 50%;
-    font-size: 15px;
+    border-radius: 10px;
+    font-size: 16px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    transition: border-color 0.15s ease, transform 0.1s ease;
   }
   #themeToggle:hover {
-    border-color: var(--muted);
+    border-color: var(--green);
+    transform: translateY(-1px);
   }
 
+  /* Pill-style segmented tab bar — active tab gets a solid tinted fill,
+     like Binance's market-type switcher, rather than a plain underline. */
   .tabs {
     display: flex;
     gap: 4px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 20px;
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 22px;
     overflow-x: auto;
+    width: fit-content;
+    max-width: 100%;
   }
   .tab {
     background: transparent;
     border: none;
     color: var(--muted);
     font-size: 13px;
-    padding: 10px 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    padding: 9px 16px;
+    border-radius: 8px;
     cursor: pointer;
-    border-bottom: 2px solid transparent;
     white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
   }
   .tab:hover {
     color: var(--text);
+    background: var(--border-soft);
   }
   .tab.active {
-    color: var(--text);
-    border-bottom: 2px solid var(--green);
-    font-weight: 500;
+    color: #05130d;
+    background: var(--green);
+  }
+  body.light .tab.active {
+    color: #ffffff;
   }
 
   .stats {
     display: flex;
-    gap: 24px;
-    margin-bottom: 20px;
+    gap: 12px;
+    margin-bottom: 22px;
   }
   .stat {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 16px;
+    border-radius: 12px;
+    padding: 14px 18px;
+    min-width: 140px;
   }
   .stat-label {
     color: var(--muted);
-    font-size: 11px;
+    font-size: 10.5px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
+    font-family: 'Inter', sans-serif;
   }
   .stat-value {
-    font-size: 20px;
-    font-weight: 500;
-    margin-top: 4px;
+    font-size: 21px;
+    font-weight: 600;
+    margin-top: 5px;
   }
   .positive { color: var(--green); }
   .negative { color: var(--red); }
   .mainRow {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     align-items: stretch;
   }
   #chartWrap {
     flex: 1;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 14px;
+    padding: 18px;
     height: 420px;
   }
   #winLossWrap {
     width: 260px;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 14px;
+    padding: 18px;
     height: 420px;
     display: flex;
     flex-direction: column;
   }
   #winLossWrap h3 {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--muted);
     margin: 0 0 12px 0;
+    font-family: 'Inter', sans-serif;
   }
   .winLossLegend {
     display: flex;
     justify-content: center;
     gap: 16px;
     font-size: 12px;
+    font-weight: 500;
     color: var(--muted);
     margin-top: 8px;
   }
@@ -174,7 +219,7 @@
   .comingSoon {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 60px 24px;
     text-align: center;
     color: var(--muted);
@@ -216,8 +261,8 @@
         <canvas id="winLossChart"></canvas>
       </div>
       <div class="winLossLegend">
-        <span><span class="legendDot" style="background:#4ade80"></span>Win</span>
-        <span><span class="legendDot" style="background:#f87171"></span>Loss</span>
+        <span><span class="legendDot" style="background:#0ecb81"></span>Win</span>
+        <span><span class="legendDot" style="background:#f6465d"></span>Loss</span>
       </div>
     </div>
   </div>
@@ -312,6 +357,32 @@ const centerTextPlugin = {
   },
 };
 Chart.register(centerTextPlugin);
+
+// The vertical dashed line that follows your cursor across the chart —
+// the one detail that visually signals "trading terminal" more than any
+// color choice. Chart.js has no built-in crosshair, so this draws it
+// manually on top of whatever point is currently active/hovered.
+const crosshairPlugin = {
+  id: "crosshair",
+  afterDraw(chart) {
+    if (chart.tooltip?._active?.length) {
+      const activePoint = chart.tooltip._active[0];
+      const { ctx, chartArea } = chart;
+      const x = activePoint.element.x;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = document.body.classList.contains("light") ? "#c4c9d0" : "#3a4048";
+      ctx.stroke();
+      ctx.restore();
+    }
+  },
+};
+Chart.register(crosshairPlugin);
 
 // ---------- Theme toggle (icon only) ----------
 function toggleTheme() {
@@ -417,7 +488,7 @@ function renderAccounts(accounts) {
 
   cardsEl.innerHTML = accounts.map(acc => {
     const pnlClass = acc.total_pnl >= 0 ? "positive" : "negative";
-    const statusColor = acc.status === "Active" ? "#4ade80" : "#888888";
+    const statusColor = acc.status === "Active" ? "#0ecb81" : "#888888";
 
     return `
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; min-width: 260px; flex: 1;">
@@ -489,8 +560,8 @@ function renderCurve(curve) {
   if (curveChartInstance) curveChartInstance.destroy();
 
   const gradient = ctx.createLinearGradient(0, 0, 0, 380);
-  gradient.addColorStop(0, "rgba(74, 222, 128, 0.25)");
-  gradient.addColorStop(1, "rgba(74, 222, 128, 0.0)");
+  gradient.addColorStop(0, "rgba(14, 203, 129, 0.25)");
+  gradient.addColorStop(1, "rgba(14, 203, 129, 0.0)");
 
   curveChartInstance = new Chart(ctx, {
     type: "line",
@@ -499,13 +570,13 @@ function renderCurve(curve) {
       datasets: [{
         label: "Cumulative R",
         data: cumulativeR,
-        borderColor: "#4ade80",
+        borderColor: "#0ecb81",
         backgroundColor: gradient,
         borderWidth: 2,
         fill: true,
         tension: 0.2,
         pointRadius: 3,
-        pointBackgroundColor: "#4ade80",
+        pointBackgroundColor: "#0ecb81",
         datalabels: {
           display: (ctx) => ctx.dataIndex === 0 || ctx.dataIndex === cumulativeR.length - 1,
           align: "top",
@@ -568,14 +639,14 @@ function renderReturns(points, startingBalance) {
   const returnsPct = points.map(p =>
     ((p.equity - startingBalance) / startingBalance) * 100
   );
-  const colors = returnsPct.map(v => v >= 0 ? "#4ade80" : "#f87171");
+  const colors = returnsPct.map(v => v >= 0 ? "#0ecb81" : "#f6465d");
 
   const ctx = document.getElementById("returnsChart").getContext("2d");
   if (returnsChartInstance) returnsChartInstance.destroy();
 
   const gradient = ctx.createLinearGradient(0, 0, 0, 380);
-  gradient.addColorStop(0, "rgba(74, 222, 128, 0.25)");
-  gradient.addColorStop(1, "rgba(74, 222, 128, 0.0)");
+  gradient.addColorStop(0, "rgba(14, 203, 129, 0.25)");
+  gradient.addColorStop(1, "rgba(14, 203, 129, 0.0)");
 
   returnsChartInstance = new Chart(ctx, {
     type: "line",
@@ -584,14 +655,14 @@ function renderReturns(points, startingBalance) {
       datasets: [{
         label: "Return %",
         data: returnsPct,
-        borderColor: "#4ade80",
+        borderColor: "#0ecb81",
         backgroundColor: gradient,
         borderWidth: 2,
         fill: true,
         tension: 0.35,
         pointRadius: 0,
         pointHoverRadius: 5,
-        pointBackgroundColor: "#4ade80",
+        pointBackgroundColor: "#0ecb81",
         datalabels: {
           display: (ctx) => ctx.dataIndex === 0 || ctx.dataIndex === returnsPct.length - 1,
           align: "top",
@@ -653,7 +724,7 @@ function renderDaily(days) {
 
   const labels = days.map(d => d.day);
   const pnl = days.map(d => d.pnl);
-  const colors = pnl.map(v => v >= 0 ? "#4ade80" : "#f87171");
+  const colors = pnl.map(v => v >= 0 ? "#0ecb81" : "#f6465d");
 
   const ctx = document.getElementById("dailyChart").getContext("2d");
   if (dailyChartInstance) dailyChartInstance.destroy();
@@ -726,7 +797,7 @@ function renderSetups(setups) {
 
   const labels = setups.map(s => s.name);
   const winRates = setups.map(s => s.win_rate);
-  const colors = winRates.map(v => v >= 50 ? "#4ade80" : "#f87171");
+  const colors = winRates.map(v => v >= 50 ? "#0ecb81" : "#f6465d");
 
   const ctx = document.getElementById("setupsChart").getContext("2d");
   if (setupsChartInstance) setupsChartInstance.destroy();
@@ -803,7 +874,7 @@ function renderSessions(sessions) {
 
   const labels = sessions.map(s => s.session);
   const pnl = sessions.map(s => s.pnl);
-  const colors = pnl.map(v => v >= 0 ? "#4ade80" : "#f87171");
+  const colors = pnl.map(v => v >= 0 ? "#0ecb81" : "#f6465d");
 
   const ctx = document.getElementById("sessionsChart").getContext("2d");
   if (sessionsChartInstance) sessionsChartInstance.destroy();
@@ -875,7 +946,7 @@ function renderMonthly(months) {
 
   const labels = months.map(m => m.month);
   const pnl = months.map(m => m.pnl);
-  const colors = pnl.map(v => v >= 0 ? "#4ade80" : "#f87171");
+  const colors = pnl.map(v => v >= 0 ? "#0ecb81" : "#f6465d");
 
   const ctx = document.getElementById("monthlyChart").getContext("2d");
   if (monthlyChartInstance) monthlyChartInstance.destroy();
@@ -972,7 +1043,7 @@ function renderWinLoss(data) {
       labels: ["Win", "Loss"],
       datasets: [{
         data: [data.wins, data.losses],
-        backgroundColor: ["#4ade80", "#f87171"],
+        backgroundColor: ["#0ecb81", "#f6465d"],
         borderWidth: 0,
       }],
     },
@@ -1031,12 +1102,12 @@ function renderChart(points) {
   // transparent, which is what gives the TSB chart its "glow" look instead
   // of a flat solid fill.
   const equityGradient = ctx.createLinearGradient(0, 0, 0, 380);
-  equityGradient.addColorStop(0, "rgba(74, 222, 128, 0.25)");
-  equityGradient.addColorStop(1, "rgba(74, 222, 128, 0.0)");
+  equityGradient.addColorStop(0, "rgba(14, 203, 129, 0.25)");
+  equityGradient.addColorStop(1, "rgba(14, 203, 129, 0.0)");
 
   const drawdownGradient = ctx.createLinearGradient(0, 0, 0, 380);
-  drawdownGradient.addColorStop(0, "rgba(248, 113, 113, 0.20)");
-  drawdownGradient.addColorStop(1, "rgba(248, 113, 113, 0.0)");
+  drawdownGradient.addColorStop(0, "rgba(246, 70, 93, 0.20)");
+  drawdownGradient.addColorStop(1, "rgba(246, 70, 93, 0.0)");
 
   // Only label a handful of points (first, last, local peaks/troughs) —
   // labeling every single point gets cluttered fast on a real dataset.
@@ -1054,7 +1125,7 @@ function renderChart(points) {
         {
           label: "Equity",
           data: equity,
-          borderColor: "#4ade80",
+          borderColor: "#0ecb81",
           backgroundColor: equityGradient,
           borderWidth: 2,
           fill: true,
@@ -1062,7 +1133,7 @@ function renderChart(points) {
           yAxisID: "y",
           pointRadius: 0,
           pointHoverRadius: 5,
-          pointBackgroundColor: "#4ade80",
+          pointBackgroundColor: "#0ecb81",
           datalabels: {
             display: (ctx) => shouldLabel(ctx.dataIndex),
             align: "top",
@@ -1075,7 +1146,7 @@ function renderChart(points) {
         {
           label: "Drawdown",
           data: drawdown,
-          borderColor: "#f87171",
+          borderColor: "#f6465d",
           backgroundColor: drawdownGradient,
           borderWidth: 1.5,
           fill: true,
@@ -1083,7 +1154,7 @@ function renderChart(points) {
           yAxisID: "y1",
           pointRadius: 0,
           pointHoverRadius: 4,
-          pointBackgroundColor: "#f87171",
+          pointBackgroundColor: "#f6465d",
           datalabels: {
             display: (ctx) => shouldLabel(ctx.dataIndex),
             align: "bottom",
@@ -1101,7 +1172,19 @@ function renderChart(points) {
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: {
-          labels: { color: textColor },
+          labels: { color: textColor, font: { family: "'Inter', sans-serif", size: 12, weight: '600' } },
+        },
+        tooltip: {
+          backgroundColor: isLight ? "#ffffff" : "#181c22",
+          titleColor: textColor,
+          bodyColor: textColor,
+          borderColor: "#0ecb81",
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
+          bodyFont: { family: "'JetBrains Mono', monospace", size: 12, weight: '600' },
+          displayColors: true,
+          boxPadding: 4,
         },
       },
       scales: {
