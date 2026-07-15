@@ -269,6 +269,11 @@
   </div>
 </div>
 
+<div id="accountsView" style="display:none">
+  <div id="accountsStatus" style="color: var(--muted); font-size: 13px;">Loading...</div>
+  <div id="accountsCards" style="display:none; display:flex; gap: 20px; flex-wrap: wrap;"></div>
+</div>
+
 <script>
 Chart.register(ChartDataLabels);
 
@@ -333,6 +338,7 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
     const dailyView = document.getElementById("dailyView");
     const returnsView = document.getElementById("returnsView");
     const curveView = document.getElementById("curveView");
+    const accountsView = document.getElementById("accountsView");
 
     equityView.style.display = "none";
     comingSoon.style.display = "none";
@@ -342,6 +348,7 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
     dailyView.style.display = "none";
     returnsView.style.display = "none";
     curveView.style.display = "none";
+    accountsView.style.display = "none";
 
     if (tab === "equity") {
       title.textContent = "Equity + Drawdown";
@@ -370,12 +377,79 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
       title.textContent = "Cumulative R-Multiple Curve";
       curveView.style.display = "block";
       if (!cachedCurve) loadCurve();
+    } else if (tab === "accounts") {
+      title.textContent = "Accounts";
+      accountsView.style.display = "block";
+      if (!cachedAccounts) loadAccounts();
     } else {
       title.textContent = tabBtn.textContent;
       comingSoon.style.display = "block";
     }
   });
 });
+
+let cachedAccounts = null;
+
+async function loadAccounts() {
+  const statusEl = document.getElementById("accountsStatus");
+  const cardsEl = document.getElementById("accountsCards");
+  try {
+    const res = await fetch("https://tsb-backend-production.up.railway.app/accounts");
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    const data = await res.json();
+    cachedAccounts = data.accounts;
+
+    if (!cachedAccounts || cachedAccounts.length === 0) {
+      statusEl.textContent = "No accounts found.";
+      return;
+    }
+
+    renderAccounts(cachedAccounts);
+    statusEl.style.display = "none";
+    cardsEl.style.display = "flex";
+  } catch (err) {
+    statusEl.textContent = "Couldn't load accounts data (" + err.message + ")";
+  }
+}
+
+function renderAccounts(accounts) {
+  const cardsEl = document.getElementById("accountsCards");
+
+  cardsEl.innerHTML = accounts.map(acc => {
+    const pnlClass = acc.total_pnl >= 0 ? "positive" : "negative";
+    const statusColor = acc.status === "Active" ? "#4ade80" : "#888888";
+
+    return `
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; min-width: 260px; flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div style="font-size: 16px; font-weight: 600;">${acc.name}</div>
+          <span style="font-size: 11px; padding: 3px 10px; border-radius: 20px; background: ${statusColor}22; color: ${statusColor};">${acc.status || "—"}</span>
+        </div>
+        <div style="color: var(--muted); font-size: 12px; margin-bottom: 4px;">${acc.type || ""}</div>
+        <div style="display: flex; justify-content: space-between; margin-top: 16px;">
+          <div>
+            <div class="stat-label">Current Balance</div>
+            <div class="stat-value">$${acc.current_balance.toLocaleString()}</div>
+          </div>
+          <div>
+            <div class="stat-label">Total P&L</div>
+            <div class="stat-value ${pnlClass}">$${acc.total_pnl.toLocaleString()}</div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 16px;">
+          <div>
+            <div class="stat-label">Win Rate</div>
+            <div class="stat-value">${acc.win_rate}%</div>
+          </div>
+          <div>
+            <div class="stat-label">Trades</div>
+            <div class="stat-value">${acc.trades}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
 
 let curveChartInstance = null;
 let cachedCurve = null;
