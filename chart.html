@@ -116,9 +116,17 @@
     white-space: nowrap;
     transition: background 0.15s ease, color 0.15s ease;
   }
-  .tab:hover {
-    color: var(--text);
-    background: var(--border-soft);
+  .tab:hover .presetSelect  {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
   }
   .tab.active {
     color: #05130d;
@@ -252,15 +260,22 @@
   <button id="themeToggle" onclick="toggleTheme()">🌙</button>
 </div>
 
-<div class="tabs" id="tabs">
-  <button class="tab" data-tab="daily">Daily</button>
-  <button class="tab active" data-tab="equity">Equity</button>
-  <button class="tab" data-tab="setups">Setups</button>
-  <button class="tab" data-tab="monthly">Monthly</button>
-  <button class="tab" data-tab="sessions">Sessions</button>
-  <button class="tab" data-tab="returns">Return %</button>
-  <button class="tab" data-tab="curve">Curve</button>
-  <button class="tab" data-tab="accounts">Accounts</button>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; flex-wrap:wrap; gap:10px;">
+  <div class="tabs" id="tabs" style="margin-bottom:0;">
+    <button class="tab" data-tab="daily">Daily</button>
+    <button class="tab active" data-tab="equity">Equity</button>
+    <button class="tab" data-tab="setups">Setups</button>
+    <button class="tab" data-tab="monthly">Monthly</button>
+    <button class="tab" data-tab="sessions">Sessions</button>
+    <button class="tab" data-tab="returns">Return %</button>
+    <button class="tab" data-tab="curve">Curve</button>
+    <button class="tab" data-tab="accounts">Accounts</button>
+  </div>
+  <select id="presetSelect" class="presetSelect">
+    <option value="all">All Tabs</option>
+    <option value="client">Client View</option>
+    <option value="personal">Personal View</option>
+  </select>
 </div>
 
 <div id="equityView">
@@ -365,6 +380,38 @@
 
 <script>
 Chart.register(ChartDataLabels);
+
+// Named groups of tabs — edit these arrays to add more presets or change
+// which tabs appear in each one. Tab keys match each button's data-tab.
+const TAB_PRESETS = {
+  all: ["daily", "equity", "setups", "monthly", "sessions", "returns", "curve", "accounts"],
+  client: ["daily", "equity", "monthly"],
+  personal: ["daily", "equity", "setups", "monthly", "sessions", "returns", "curve", "accounts"],
+};
+
+function applyPreset(presetKey) {
+  const allowed = TAB_PRESETS[presetKey] || TAB_PRESETS.all;
+  document.querySelectorAll(".tab").forEach(tabBtn => {
+    tabBtn.style.display = allowed.includes(tabBtn.dataset.tab) ? "" : "none";
+  });
+
+  const activeTab = document.querySelector(".tab.active");
+  if (!activeTab || activeTab.style.display === "none") {
+    const firstVisible = document.querySelector(`.tab[data-tab="${allowed[0]}"]`);
+    if (firstVisible) firstVisible.click();
+  }
+}
+
+document.getElementById("presetSelect").addEventListener("change", (e) => {
+  applyPreset(e.target.value);
+});
+
+// Supports a URL like chart.html?preset=client so a specific Notion embed
+// can load pre-filtered without needing to touch the dropdown.
+const urlParams = new URLSearchParams(window.location.search);
+const initialPreset = urlParams.get("preset") || "all";
+document.getElementById("presetSelect").value = initialPreset;
+applyPreset(initialPreset);
 
 const API_URL = "https://tsb-backend-production.up.railway.app/equity-curve";
 const WIN_LOSS_API_URL = "https://tsb-backend-production.up.railway.app/win-loss";
