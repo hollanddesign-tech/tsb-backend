@@ -751,10 +751,11 @@ function renderDailyMap(days) {
 
   const maxTrades = Math.max(1, ...days.map(d => d.trades));
 
-  const allDates = days.map(d => new Date(d.date));
   const today = new Date();
-  let start = allDates.length ? new Date(Math.min(...allDates)) : new Date(today);
-  const startDow = (start.getDay() + 6) % 7;
+  let start = new Date(today);
+  start.setMonth(start.getMonth() - 11); // fixed 12-month rolling window
+  start.setDate(1); // align to start of that month for clean labels
+  const startDow = (start.getDay() + 6) % 7; // Mon=0 ... Sun=6
   start.setDate(start.getDate() - startDow);
 
   const gridEl = document.getElementById("dailyMapGrid");
