@@ -9,10 +9,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    /* Trading-terminal dark palette, closer to Binance/TradingView than a
-       generic dark theme — deep near-black background, saturated green/red
-       rather than pastel, so P&L reads with the same weight it would on a
-       real exchange. */
     --bg: #0b0e11;
     --panel: #14181d;
     --card: #181c22;
@@ -50,9 +46,6 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* All numeric/price values use the mono face with tabular figures — the
-     one detail that most separates a "real" trading UI from a dashboard
-     mockup: digits align vertically no matter what number's shown. */
   .mono, .stat-value, .price-mono {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
@@ -98,8 +91,6 @@
     transform: translateY(-1px);
   }
 
-  /* Pill-style segmented tab bar — active tab gets a solid tinted fill,
-     like Binance's market-type switcher, rather than a plain underline. */
   .tabs {
     display: flex;
     gap: 4px;
@@ -225,6 +216,30 @@
     color: var(--muted);
     font-size: 14px;
   }
+
+  /* Trading Consistency Map (Daily tab) */
+  .dailyMapHeader { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
+  .dailyMapTitle { font-size:15px; font-weight:700; }
+  .dailyMapStats { display:flex; gap:10px; }
+  .dailyMapStat { background: var(--card); border:1px solid var(--border); border-radius:10px; padding:8px 16px; text-align:center; min-width:64px; }
+  .dailyMapStat .num { font-size:16px; font-weight:700; font-family:'JetBrains Mono',monospace; }
+  .dailyMapStat .lbl { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:2px; }
+  .dailyMapScroll { overflow-x:auto; padding-bottom:6px; }
+  .dailyMapMonths { display:flex; margin-left:34px; margin-bottom:4px; }
+  .monthLabel { font-size:11px; color:var(--muted); font-weight:600; white-space:nowrap; }
+  .dailyMapBody { display:flex; }
+  .dailyMapDayLabels { display:flex; flex-direction:column; gap:3px; margin-right:8px; width:28px; }
+  .dayLabel { height:14px; font-size:10px; color:var(--muted); line-height:14px; }
+  .dailyMapGrid { display:grid; grid-auto-flow:column; grid-template-rows: repeat(7, 14px); gap:3px; }
+  .dayCell { width:14px; height:14px; border-radius:3px; background: var(--border-soft); cursor:default; position:relative; }
+  .dayCell:hover::after {
+    content: attr(data-tip);
+    position:absolute; bottom:120%; left:50%; transform:translateX(-50%);
+    background: var(--card); border:1px solid var(--border); color:var(--text);
+    font-size:11px; padding:5px 8px; border-radius:6px; white-space:nowrap; z-index:10;
+  }
+  .dailyMapLegend { display:flex; align-items:center; gap:6px; margin-top:14px; font-size:11px; color:var(--muted); }
+  .legendSwatch { width:12px; height:12px; border-radius:3px; display:inline-block; }
 </style>
 </head>
 <body>
@@ -295,8 +310,37 @@
 
 <div id="dailyView" style="display:none">
   <div id="dailyStatus" style="color: var(--muted); font-size: 13px;">Loading...</div>
-  <div id="dailyChartWrap" style="display:none; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; height: 420px;">
-    <canvas id="dailyChart"></canvas>
+  <div id="dailyMapWrap" style="display:none; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px;">
+    <div class="dailyMapHeader">
+      <div class="dailyMapTitle">Trading Consistency Map</div>
+      <div class="dailyMapStats" id="dailyMapStats"></div>
+    </div>
+    <div class="dailyMapScroll">
+      <div class="dailyMapMonths" id="dailyMapMonths"></div>
+      <div class="dailyMapBody">
+        <div class="dailyMapDayLabels">
+          <div class="dayLabel"></div>
+          <div class="dayLabel">Mon</div>
+          <div class="dayLabel"></div>
+          <div class="dayLabel">Wed</div>
+          <div class="dayLabel"></div>
+          <div class="dayLabel">Fri</div>
+          <div class="dayLabel"></div>
+        </div>
+        <div class="dailyMapGrid" id="dailyMapGrid"></div>
+      </div>
+    </div>
+    <div class="dailyMapLegend">
+      <span>No trade</span>
+      <span class="legendSwatch" style="background: var(--border-soft)"></span>
+      <span style="margin-left:14px;">Low</span>
+      <span class="legendSwatch" style="background:rgba(14,203,129,0.25)"></span>
+      <span class="legendSwatch" style="background:rgba(14,203,129,0.5)"></span>
+      <span class="legendSwatch" style="background:rgba(14,203,129,0.75)"></span>
+      <span class="legendSwatch" style="background:rgba(14,203,129,1)"></span>
+      <span>High</span>
+      <span id="dailyMapFooter" style="margin-left:auto;"></span>
+    </div>
   </div>
 </div>
 
@@ -330,8 +374,6 @@ let winLossChartInstance = null;
 let cachedData = null;
 let cachedWinLoss = null;
 
-// Draws "62% / Win Rate" text centered inside the donut hole — Chart.js
-// doesn't support this natively, so this is a small custom plugin.
 const centerTextPlugin = {
   id: "centerText",
   afterDraw(chart) {
@@ -358,10 +400,6 @@ const centerTextPlugin = {
 };
 Chart.register(centerTextPlugin);
 
-// The vertical dashed line that follows your cursor across the chart —
-// the one detail that visually signals "trading terminal" more than any
-// color choice. Chart.js has no built-in crosshair, so this draws it
-// manually on top of whatever point is currently active/hovered.
 const crosshairPlugin = {
   id: "crosshair",
   afterDraw(chart) {
@@ -384,7 +422,6 @@ const crosshairPlugin = {
 };
 Chart.register(crosshairPlugin);
 
-// ---------- Theme toggle (icon only) ----------
 function toggleTheme() {
   const isLight = document.body.classList.toggle("light");
   const btn = document.getElementById("themeToggle");
@@ -392,8 +429,6 @@ function toggleTheme() {
   if (cachedData) renderChart(cachedData.points);
   if (cachedWinLoss) renderWinLoss(cachedWinLoss);
 }
-
-// ---------- Tab switching ----------
 document.querySelectorAll(".tab").forEach(tabBtn => {
   tabBtn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -437,7 +472,7 @@ document.querySelectorAll(".tab").forEach(tabBtn => {
       setupsView.style.display = "block";
       if (!cachedSetups) loadSetups();
     } else if (tab === "daily") {
-      title.textContent = "Daily P&L";
+      title.textContent = "Trading Consistency Map";
       dailyView.style.display = "block";
       if (!cachedDaily) loadDaily();
     } else if (tab === "returns") {
@@ -610,9 +645,6 @@ function renderCurve(curve) {
 
 let returnsChartInstance = null;
 
-// Unlike the other tabs, this doesn't need its own fetch — it reuses the
-// equity data already loaded for the Equity tab and just recomputes it
-// as a percentage instead of dollars.
 function loadReturns() {
   const statusEl = document.getElementById("returnsStatus");
   const wrapEl = document.getElementById("returnsChartWrap");
@@ -634,12 +666,9 @@ function renderReturns(points, startingBalance) {
   const gridColor = isLight ? "#eeeeee" : "#1f1f1f";
 
   const labels = points.map(p => new Date(p.date).toLocaleDateString());
-  // Convert dollar equity into % return relative to the starting balance —
-  // same underlying data as the Equity tab, different lens on it.
   const returnsPct = points.map(p =>
     ((p.equity - startingBalance) / startingBalance) * 100
   );
-  const colors = returnsPct.map(v => v >= 0 ? "#0ecb81" : "#f6465d");
 
   const ctx = document.getElementById("returnsChart").getContext("2d");
   if (returnsChartInstance) returnsChartInstance.destroy();
@@ -692,12 +721,11 @@ function renderReturns(points, startingBalance) {
   });
 }
 
-let dailyChartInstance = null;
 let cachedDaily = null;
 
 async function loadDaily() {
   const statusEl = document.getElementById("dailyStatus");
-  const wrapEl = document.getElementById("dailyChartWrap");
+  const wrapEl = document.getElementById("dailyMapWrap");
   try {
     const res = await fetch("https://tsb-backend-production.up.railway.app/daily-pnl");
     if (!res.ok) throw new Error(`Server responded ${res.status}`);
@@ -709,7 +737,7 @@ async function loadDaily() {
       return;
     }
 
-    renderDaily(cachedDaily);
+    renderDailyMap(cachedDaily);
     statusEl.style.display = "none";
     wrapEl.style.display = "block";
   } catch (err) {
@@ -717,53 +745,110 @@ async function loadDaily() {
   }
 }
 
-function renderDaily(days) {
-  const isLight = document.body.classList.contains("light");
-  const mutedColor = isLight ? "#666666" : "#888888";
-  const gridColor = isLight ? "#eeeeee" : "#1f1f1f";
+function renderDailyMap(days) {
+  const byDate = {};
+  days.forEach(d => { byDate[d.date] = d; });
 
-  const labels = days.map(d => d.day);
-  const pnl = days.map(d => d.pnl);
-  const colors = pnl.map(v => v >= 0 ? "#0ecb81" : "#f6465d");
+  const maxTrades = Math.max(1, ...days.map(d => d.trades));
 
-  const ctx = document.getElementById("dailyChart").getContext("2d");
-  if (dailyChartInstance) dailyChartInstance.destroy();
+  const allDates = days.map(d => new Date(d.date));
+  const today = new Date();
+  let start = allDates.length ? new Date(Math.min(...allDates)) : new Date(today);
+  const startDow = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - startDow);
 
-  dailyChartInstance = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "Daily P&L",
-        data: pnl,
-        backgroundColor: colors,
-        borderRadius: 4,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        datalabels: {
-          anchor: "end",
-          align: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? "top" : "bottom",
-          color: mutedColor,
-          font: { size: 10 },
-          formatter: (v) => formatCompact(v),
-        },
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: mutedColor, maxTicksLimit: 10 } },
-        y: {
-          grid: { color: gridColor },
-          ticks: { color: mutedColor, callback: (v) => formatCompact(v) },
-        },
-      },
-    },
+  const gridEl = document.getElementById("dailyMapGrid");
+  const monthsEl = document.getElementById("dailyMapMonths");
+  gridEl.innerHTML = "";
+  monthsEl.innerHTML = "";
+
+  let cursor = new Date(start);
+  let col = 0;
+  let lastMonth = -1;
+  const monthLabels = [];
+
+  while (cursor <= today) {
+    if (cursor.getMonth() !== lastMonth) {
+      lastMonth = cursor.getMonth();
+      const monthName = cursor.toLocaleDateString(undefined, { month: "short" });
+      const tradesThisMonth = days.filter(d => {
+        const dd = new Date(d.date);
+        return dd.getFullYear() === cursor.getFullYear() && dd.getMonth() === cursor.getMonth();
+      }).reduce((sum, d) => sum + d.trades, 0);
+      monthLabels.push({ col, label: `${monthName} ${tradesThisMonth}t` });
+    }
+
+    for (let row = 0; row < 7; row++) {
+      const dateStr = cursor.toISOString().slice(0, 10);
+      const entry = byDate[dateStr];
+      const cell = document.createElement("div");
+      cell.className = "dayCell";
+
+      if (!entry || entry.trades === 0) {
+        cell.style.background = "var(--border-soft)";
+        cell.dataset.tip = `${dateStr} — no trades`;
+      } else {
+        const intensity = 0.2 + 0.8 * (entry.trades / maxTrades);
+        if (entry.outcome === "win") {
+          cell.style.background = `rgba(14, 203, 129, ${intensity.toFixed(2)})`;
+        } else if (entry.outcome === "loss") {
+          cell.style.background = `rgba(246, 70, 93, ${intensity.toFixed(2)})`;
+        } else {
+          cell.style.background = "var(--border)";
+        }
+        cell.dataset.tip = `${dateStr} — ${entry.trades} trade${entry.trades > 1 ? "s" : ""}, $${entry.pnl.toFixed(2)}`;
+      }
+
+      gridEl.appendChild(cell);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    col++;
+  }
+
+  monthsEl.style.position = "relative";
+  monthsEl.style.height = "16px";
+  monthLabels.forEach(m => {
+    const label = document.createElement("div");
+    label.className = "monthLabel";
+    label.style.position = "absolute";
+    label.style.left = (m.col * 17) + "px";
+    label.textContent = m.label;
+    monthsEl.appendChild(label);
   });
+
+  const activeDays = days.filter(d => d.trades > 0).map(d => d.date).sort();
+  const totalTrades = days.reduce((sum, d) => sum + d.trades, 0);
+  const { current, best } = computeStreaks(activeDays);
+
+  document.getElementById("dailyMapStats").innerHTML = `
+    <div class="dailyMapStat"><div class="num">${activeDays.length}</div><div class="lbl">Active</div></div>
+    <div class="dailyMapStat"><div class="num">${totalTrades}</div><div class="lbl">Trades</div></div>
+    <div class="dailyMapStat"><div class="num">${current}</div><div class="lbl">Current</div></div>
+    <div class="dailyMapStat"><div class="num">${best}</div><div class="lbl">Best</div></div>
+  `;
+
+  const wins = days.filter(d => d.outcome === "win").length;
+  const losses = days.filter(d => d.outcome === "loss").length;
+  document.getElementById("dailyMapFooter").textContent =
+    `${activeDays.length} active days · ${wins} green · ${losses} red · intensity = trades logged`;
 }
 
+function computeStreaks(sortedDates) {
+  if (sortedDates.length === 0) return { current: 0, best: 0 };
+  let best = 1, run = 1;
+  for (let i = 1; i < sortedDates.length; i++) {
+    const diffDays = Math.round((new Date(sortedDates[i]) - new Date(sortedDates[i - 1])) / 86400000);
+    run = diffDays <= 3 ? run + 1 : 1;
+    best = Math.max(best, run);
+  }
+  let current = 1;
+  for (let i = sortedDates.length - 1; i > 0; i--) {
+    const diffDays = Math.round((new Date(sortedDates[i]) - new Date(sortedDates[i - 1])) / 86400000);
+    if (diffDays <= 3) current++;
+    else break;
+  }
+  return { current, best };
+}
 let setupsChartInstance = null;
 let cachedSetups = null;
 
@@ -814,7 +899,7 @@ function renderSetups(setups) {
       }],
     },
     options: {
-      indexAxis: "y", // horizontal bars — reads better with setup names as labels
+      indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
@@ -986,16 +1071,13 @@ function renderMonthly(months) {
   });
 }
 
-// ---------- Helpers ----------
 function formatCompact(v) {
-  // Turns 12345 into "$12.3K", -305 into "-$305", matching the TSB-style labels
   const sign = v < 0 ? "-" : "";
   const abs = Math.abs(v);
   if (abs >= 1000) return sign + "$" + (abs / 1000).toFixed(1).replace(/\.0$/, "") + "K";
   return sign + "$" + abs.toLocaleString();
 }
 
-// ---------- Data + chart ----------
 async function loadChart() {
   const statusEl = document.getElementById("status");
   try {
@@ -1098,9 +1180,6 @@ function renderChart(points) {
     chartInstance.destroy();
   }
 
-  // Soft vertical gradient fill under the equity line — fades from green to
-  // transparent, which is what gives the TSB chart its "glow" look instead
-  // of a flat solid fill.
   const equityGradient = ctx.createLinearGradient(0, 0, 0, 380);
   equityGradient.addColorStop(0, "rgba(14, 203, 129, 0.25)");
   equityGradient.addColorStop(1, "rgba(14, 203, 129, 0.0)");
@@ -1109,8 +1188,6 @@ function renderChart(points) {
   drawdownGradient.addColorStop(0, "rgba(246, 70, 93, 0.20)");
   drawdownGradient.addColorStop(1, "rgba(246, 70, 93, 0.0)");
 
-  // Only label a handful of points (first, last, local peaks/troughs) —
-  // labeling every single point gets cluttered fast on a real dataset.
   function shouldLabel(i) {
     if (i === 0 || i === equity.length - 1) return true;
     const prev = equity[i - 1], curr = equity[i], next = equity[i + 1];
