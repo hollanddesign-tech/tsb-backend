@@ -226,12 +226,12 @@
   .dailyMapStat .lbl { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:2px; }
   .dailyMapScroll { overflow-x:auto; padding-bottom:6px; }
   .dailyMapMonths { display:flex; margin-left:34px; margin-bottom:4px; }
-  .monthLabel { font-size:11px; color:var(--muted); font-weight:600; white-space:nowrap; }
+  .monthLabel { font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap; }
   .dailyMapBody { display:flex; }
-  .dailyMapDayLabels { display:flex; flex-direction:column; gap:3px; margin-right:8px; width:28px; }
-  .dayLabel { height:14px; font-size:10px; color:var(--muted); line-height:14px; }
-  .dailyMapGrid { display:grid; grid-auto-flow:column; grid-template-rows: repeat(7, 14px); gap:3px; }
-  .dayCell { width:14px; height:14px; border-radius:3px; background: var(--border-soft); cursor:default; position:relative; }
+  .dailyMapDayLabels { display:flex; flex-direction:column; gap:5px; margin-right:8px; width:32px; }
+  .dayLabel { height:20px; font-size:11px; color:var(--muted); line-height:20px; }
+  .dailyMapGrid { display:grid; grid-auto-flow:column; grid-template-rows: repeat(7, 20px); gap:5px; }
+  .dayCell { width:20px; height:20px; border-radius:4px; background: var(--border-soft); cursor:default; position:relative; }
   .dayCell:hover::after {
     content: attr(data-tip);
     position:absolute; bottom:120%; left:50%; transform:translateX(-50%);
@@ -812,7 +812,7 @@ function renderDailyMap(days) {
     const label = document.createElement("div");
     label.className = "monthLabel";
     label.style.position = "absolute";
-    label.style.left = (m.col * 17) + "px";
+    label.style.left = (m.col * 25) + "px";
     label.textContent = m.label;
     monthsEl.appendChild(label);
   });
